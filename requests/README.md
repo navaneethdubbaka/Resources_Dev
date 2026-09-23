@@ -1,6 +1,6 @@
 # Python requests — Calling HTTP APIs
 
-> A teachable progression from a basic HTTP GET request to an authenticated, multi-turn OpenAI-compatible LLM client.
+
 
 Read the scripts in numerical order. Each one introduces a single capability used by a later example.
 
