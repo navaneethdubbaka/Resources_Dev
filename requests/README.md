@@ -519,3 +519,7 @@ FastAPI can expose these client capabilities through an API endpoint for other a
 ## Module boundary
 
 This module is intentionally client-side only. It does not create FastAPI, LangChain, LangGraph, shared, test, or docs modules. Those are later phases in the prescribed learning sequence.
+
+## Student code-reading guide
+
+Read each file top-to-bottom, then trace the request and response: **01** imports `requests`, performs GET, checks the status, and prints raw `text`; **02** creates a Python `payload`, sends it with `json=`, and parses the echoed JSON; **03** constructs a headers dictionary and proves headers travel separately from the body; **04** uses `response.json()` and dictionary keys; **05** wraps request/HTTP/network failures in `RequestException`; **06** handles the narrower `Timeout` failure before general request errors; **07** reads environment configuration, builds authorization headers and a chat-completions JSON body, then extracts the provider response; **08** appends user and assistant messages to application-owned history before each call. Every `if __name__ == "__main__"` block is a runnable demonstration, while the functions above it make the important behavior reusable and testable.

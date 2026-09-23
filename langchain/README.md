@@ -78,3 +78,53 @@ Ask: “What repeats after an LLM call?” Draw `prompt -> model -> parser`. Run
 ## Connection to LangGraph
 
 A chain is a sequence of components. Branching, shared state, retries, and model-directed tool loops require graph-based control flow, which is the next phase.
+
+## Detailed code walkthroughs
+
+### `01_model.py`
+
+`os.getenv` reads configuration from the current shell instead of source code. `build_model` refuses to create a usable provider client until both `LLM_API_KEY` and `LLM_MODEL` exist. `ChatOpenAI(model=model, temperature=0)` is the LangChain provider adapter; it does not make a network call when constructed. The `__main__` guard means this demonstration runs only when the file is executed directly. Its `try`/`except` turns absent credentials into a teaching message rather than exposing a secret or producing an unclear traceback.
+
+### `02_prompt_template.py`
+
+`PromptTemplate.from_template(...)` records a reusable string with two named placeholders. `prompt.format(...)` replaces them with the supplied keyword values and returns ordinary text. No model is involved yet: this isolates prompt construction so students can see that templates are reusable text, not intelligence.
+
+### `03_output_parser.py`
+
+`AIMessage` represents a model-style response object. `StrOutputParser` accepts that object and returns only its text `content`. This demonstrates why parsers matter: the rest of an application should receive the output shape it needs instead of provider-specific message objects.
+
+### `04_chain.py`
+
+The prompt turns `topic` input into a `PromptValue`. `RunnableLambda` is a deterministic offline stand-in that reads `value.text` and produces an `AIMessage`; it is deliberately not an LLM. The pipe operator builds one runnable sequence: prompt output flows to model output, then to `StrOutputParser`. `chain.invoke` supplies the one input dictionary and returns the final string.
+
+### `05_structured_output.py`
+
+`Lesson` is a Pydantic schema: `topic` and `summary` are required strings; `difficulty` is restricted by a regular-expression pattern. `PydanticOutputParser` converts JSON text into a validated `Lesson` instance. If a field is absent, malformed, or has an unsupported difficulty, parsing raises a validation error—exactly the predictable failure a program needs.
+
+### `06_document_loader.py`
+
+`Path(__file__).parent` locates this module reliably regardless of the terminal's current directory. `TextLoader(..., encoding="utf-8")` reads the local text file and returns LangChain `Document` objects. `page_content` is the source text; loaders can also carry metadata. The example uses a local file so no download or API key is needed.
+
+### `07_text_splitter.py`
+
+The loader first produces documents, then `RecursiveCharacterTextSplitter` divides them into chunks near 70 characters while preserving a 10-character overlap. The loop labels each resulting chunk. Overlap lets related boundary text appear in adjacent chunks; too much overlap repeats data, while too little can split necessary context.
+
+### `08_embeddings.py`
+
+`VOCABULARY` defines six teaching dimensions. `KeywordEmbeddings.embed_query` lowercases and singularizes words, then returns `1.0` for present vocabulary words and `0.0` otherwise. It makes the text-to-vector transformation visible, but it is not a replacement for a trained semantic embedding model and should not be used for production retrieval.
+
+### `09_vector_store.py`
+
+Each `Document` stores source text. `InMemoryVectorStore(KeywordEmbeddings())` pairs documents with vectors in process memory; `add_documents` creates those vectors. `similarity_search(query, k=1)` embeds the query, compares it with stored vectors, and returns the nearest one document. The store disappears when the program stops.
+
+### `10_retriever.py`
+
+The store setup is the same as Example 9, but `as_retriever(search_kwargs={"k": 1})` exposes a retrieval-focused interface. `retriever.invoke(question)` returns documents rather than a final answer. Separating retrieval from generation lets an application inspect, cite, filter, or format the retrieved context before an LLM sees it.
+
+### `11_rag.py`
+
+`answer` creates a small local document collection, retrieves the single nearest chunk, and assigns its `page_content` to `context`. The prompt template combines context and the original question, explicitly directing a later model to use only that context. Printing the prompt is intentional: it reveals the RAG handoff without claiming that a local template itself generated an answer. A real model call belongs after this visible boundary.
+
+### `12_tool_calling.py`
+
+`@tool` reads the function name, type hints, and docstring to create a LangChain tool with a schema. `multiply.invoke` calls that tool using a dictionary whose keys match the parameter names. This is direct invocation, not autonomous model choice; it teaches the tool contract before LangGraph adds routing and loops.

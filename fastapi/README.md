@@ -441,3 +441,7 @@ Calling a model directly works, but larger applications need reusable prompt/mod
 ## Module boundary
 
 This phase creates API servers only. It does not add LangChain, LangGraph, the dedicated test suite, shared utilities, or cross-module documentation; those remain in later phases.
+
+## Student code-reading guide
+
+Every file first creates `app = FastAPI(...)`; Uvicorn serves that object. In **01**, `@app.get("/")` maps a GET path to a dictionary JSON response. **02** names `{user_id}` and `{product_id}` path placeholders exactly like their typed function parameters. **03** uses typed function parameters as query inputs, with `limit=5` as a default. **04** marks a dictionary as `Body()` input so FastAPI parses POST JSON. **05** replaces the loose dictionary with a Pydantic `User` schema and field constraints; invalid input never reaches `create_user`. **06** looks up a local dictionary and raises `HTTPException(404, ...)` for a known missing resource. **07** validates a `ChatRequest`, reads LLM environment configuration, calls the provider through `requests`, and translates configuration/provider failures into safe HTTP `503`/`502` responses. Route decorators define the API contract; return values become JSON.
