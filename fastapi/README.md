@@ -142,9 +142,9 @@ APIs often identify a specific resource in the path: one user, book, order, or p
 
 ~~~mermaid
 flowchart LR
-    A[GET /users/7] --> B[Match /users/{user_id}]
-    B --> C[Convert user_id to int]
-    C --> D[get_user(user_id)]
+    A[GET user route with ID 7] --> B[Match user route and capture ID]
+    B --> C[Convert captured ID to integer]
+    C --> D[Call get_user]
     D --> E[JSON response]
 ~~~
 
@@ -446,7 +446,7 @@ A missing resource should not look like a success, nor should it become an unhan
 
 ~~~mermaid
 flowchart TD
-    A[GET /books/{book_id}] --> B[BOOKS.get(book_id)]
+    A[GET book route with an ID] --> B[Look up ID in BOOKS]
     B --> C{Title found?}
     C -->|Yes| D[200 + book JSON]
     C -->|No| E[HTTPException 404]
