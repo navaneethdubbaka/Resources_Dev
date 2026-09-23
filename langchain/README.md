@@ -2,6 +2,10 @@
 
 LangChain is not an LLM. An LLM generates language; LangChain composes the application pieces around it: prompts, models, parsers, documents, retrieval, and tools.
 
+## If you are completely new
+
+Think of an LLM application as a small assembly line. One part prepares instructions, one part generates or receives text, one part checks its format, and later parts find documents or run tools. LangChain does not replace Python and it does not magically make a model smarter; it helps connect those parts in a readable order. Run Examples 2–5 before Examples 6–11, because RAG is built from the earlier pieces.
+
 ```text
 Input -> Prompt -> Model -> Parser -> Output
 Question -> Retriever -> Context -> Prompt -> Model -> Answer
@@ -14,6 +18,65 @@ Install with `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`. Ru
 ### 01 Model
 
 Problem: an application needs a provider model interface. Architecture: `application -> ChatOpenAI -> LLM provider`. Before code: LangChain does not supply intelligence; `ChatOpenAI` is an adapter. Important line: `ChatOpenAI(model=...)` constructs a model. Run `01_model.py`; without credentials its expected output is a safe configuration error. Experiment: set `LLM_API_KEY` and `LLM_MODEL`, then call `invoke` yourself. Common error: never hardcode the key. Connection: templates make prompts reusable.
+
+#### Line-by-line beginner walkthrough
+
+```python
+import os
+```
+
+`os` is Python's built-in operating-system module. This example uses it only to read environment variables: settings stored outside the source code. That separation is essential for secrets such as API keys.
+
+```python
+from langchain_openai import ChatOpenAI
+```
+
+This imports LangChain's OpenAI-compatible chat-model adapter. `ChatOpenAI` is not the model itself and it does not contain an API key. It is a Python object that knows how to format requests and communicate with a compatible provider when asked to do so.
+
+```python
+def build_model() -> ChatOpenAI:
+```
+
+This defines a reusable function. It does not contact a provider merely because Python reads the definition. The `-> ChatOpenAI` type hint tells readers that a successful call returns a configured chat-model object.
+
+```python
+    model = os.getenv("LLM_MODEL", "")
+```
+
+`os.getenv` looks for `LLM_MODEL` in the current terminal environment. If it is absent, it returns the supplied default empty string. The chosen model name is configuration: different accounts/providers may expose different models, so it should not be assumed in teaching code.
+
+```python
+    if not os.getenv("LLM_API_KEY") or not model:
+```
+
+This checks two required values. `not` means “is empty or false.” `or` means either missing value makes the whole condition true. The API key is read only long enough to validate that it exists; its value is never printed.
+
+```python
+        raise RuntimeError("Set LLM_API_KEY and LLM_MODEL before calling a real model.")
+```
+
+`raise` deliberately stops this function with a clear explanation. Failing early is safer than sending a malformed request, accidentally using an unintended configuration, or producing a confusing provider error.
+
+```python
+    return ChatOpenAI(model=model, temperature=0)
+```
+
+When configuration is present, this creates and returns the adapter. `model=model` passes the selected model name. `temperature=0` asks a provider for less random output when it is eventually called. Creating this object normally does **not** make an API call; a later `.invoke(...)` would. This distinction matters: configuration and generation are separate steps.
+
+```python
+if __name__ == "__main__":
+```
+
+This block runs only when `01_model.py` is executed directly. If a future program imports `build_model`, it can reuse the function without automatically printing or validating configuration.
+
+```python
+    try: print(build_model())
+    except RuntimeError as error: print(f"Configuration check: {error}")
+```
+
+`try` attempts to build the adapter. If configuration is missing, the earlier `RuntimeError` jumps to `except`; the error is stored in `error` and printed as a beginner-friendly configuration check. With valid settings, printing shows the configured adapter object—not a model answer—because no `.invoke` call exists in this example.
+
+**Runtime story:** direct execution -> check configuration -> either print a safe instruction or construct an adapter. There is no paid/live generation in this file. The next example introduces the prompt text that a future model call would receive.
 
 ### 02 Prompt template
 

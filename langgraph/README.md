@@ -2,6 +2,10 @@
 
 LangChain composes components in a sequence. LangGraph is for cases where the control flow needs state, branching, loops, retries, tools, or memory.
 
+## If you are completely new
+
+Imagine a flowchart that can execute Python functions. A box is a **node**; an arrow is an **edge**; the notebook carried between boxes is the **state**. Start with Example 1 and trace the arrows on paper before executing it. Do not start with the agent: Examples 1–9 build the vocabulary needed to understand why Example 10 returns from a tool to an agent node.
+
 ```text
 START -> node -> edge -> node -> END
                  \-> conditional route -> another node
@@ -25,6 +29,73 @@ Run every example with `.\.venv\Scripts\python.exe langgraph\NN_name.py`.
 | `08_memory_checkpoint.py` | state -> increment -> memory checkpoint; prints count 1. | `MemorySaver` associates state with a `thread_id`; it is in-memory, not durable storage. |
 | `09_workflow.py` | outline -> write -> END; prints a short lesson. | A workflow has developer-defined control flow. |
 | `10_basic_agent.py` | agent -> tool? -> calculator -> agent -> END; prints answer `42`. | An agent loop allows a decision step after a tool result. |
+
+## Example 1: `01_linear_graph.py` line-by-line beginner walkthrough
+
+```python
+from typing import TypedDict
+```
+
+`TypedDict` lets us describe the expected keys and value types in a dictionary. It helps readers and type-checking tools understand the state shape. It does not create a database and it does not force values at runtime by itself.
+
+```python
+from langgraph.graph import END, START, StateGraph
+```
+
+`StateGraph` is the LangGraph object used to describe a workflow whose nodes share state. `START` is a special built-in marker meaning “the graph begins here.” `END` is a special marker meaning “the graph finishes here.” They are not ordinary functions written by the student.
+
+```python
+class State(TypedDict):
+    text: str
+```
+
+This declares that state moving through this graph has one named field: `text`, containing a string. Think of state as a small notebook passed between workflow steps. At the start, the notebook contains `{"text": "AI Engineering"}`. A node may read the notebook and return changes to it.
+
+```python
+def greet(state: State):
+```
+
+This defines a node function named `greet`. LangGraph will call it later; defining it does not run it immediately. The `state: State` annotation tells students that the incoming dictionary should follow the state shape above.
+
+```python
+    return {"text": f"Hello, {state['text']}"}
+```
+
+`state["text"]` reads the current text from the state dictionary. The `f` before the string creates an f-string, allowing the value to be inserted between `Hello, ` and the end of the text. The function returns a **partial state update**. LangGraph merges this returned `text` value into the current state notebook. It does not need to mutate a global variable.
+
+```python
+graph = StateGraph(State)
+```
+
+This creates an unfinished graph definition and tells LangGraph which state shape it will use. At this point there are no nodes or arrows, so it cannot run yet.
+
+```python
+graph.add_node("greet", greet)
+```
+
+This registers the Python function `greet` as a graph node named `"greet"`. The string is the node's graph label; the second value is the function to run when execution reaches that label.
+
+```python
+graph.add_edge(START, "greet")
+graph.add_edge("greet", END)
+```
+
+An edge is an arrow in the workflow. The first edge says execution enters `greet` immediately after starting. The second says execution stops after `greet` completes. Together they form a linear graph: `START -> greet -> END`.
+
+```python
+app = graph.compile()
+```
+
+`compile()` checks the graph structure and turns the definition into an executable application object. This is similar to building a route table before a FastAPI server handles a request: the graph is now ready to receive state.
+
+```python
+if __name__ == "__main__":
+    print(app.invoke({"text": "AI Engineering"}))
+```
+
+The guard means this demo runs only when the file is executed directly. `invoke` supplies the initial state dictionary. LangGraph follows `START -> greet -> END`; `greet` changes the text to `Hello, AI Engineering`; `invoke` returns the final state; `print` displays it.
+
+**Full execution trace:** initial state `{"text": "AI Engineering"}` -> start edge -> `greet(state)` -> returned update `{"text": "Hello, AI Engineering"}` -> final state -> end. This is a deterministic workflow: the developer has defined every route, and no model/agent decides what happens next.
 
 For each example: the problem is the limitation named in the table; inspect the small source before code execution; run the exact command above; expected output is described in the table; then perform its experiment. Common errors are covered below and each row leads to the next concept.
 

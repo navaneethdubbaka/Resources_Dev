@@ -2,6 +2,10 @@
 
 Phase 1 used `requests` as a **client** to call APIs. This module reverses the perspective: FastAPI is a Python framework that creates a **server** API other programs can call.
 
+## If you are completely new
+
+Keep the two roles separate: a **client** sends a request; a **server** waits for one and sends a response. In these files, Python starts a server only after Uvicorn runs it. A decorator such as `@app.get("/")` is a label that tells FastAPI: “when a GET request arrives at `/`, run the function directly below.” Open `/docs` after each server starts; it is a safe place to see and try the API without writing another client first.
+
 ```text
 Client
   -> HTTP request
@@ -63,6 +67,50 @@ See `01_hello_api.py`.
 ### 6. Important lines
 
 `FastAPI()` creates the app; `@app.get("/")` registers a GET route; the returned dictionary becomes JSON.
+
+### 6a. Line-by-line beginner walkthrough
+
+Read `01_hello_api.py` while following this explanation:
+
+```python
+"""The smallest FastAPI application: one GET route returning JSON."""
+```
+
+This is a docstring. It describes the file for people and tools; it does not create an endpoint or send a response.
+
+```python
+from fastapi import FastAPI
+```
+
+`from ... import ...` imports only the `FastAPI` class from the installed `fastapi` package. A class is a blueprint used to create an object. Python needs this import before it can create the application.
+
+```python
+app = FastAPI(title="Hello API")
+```
+
+This creates the central FastAPI application object and stores it in the variable `app`. `title` is metadata shown in generated documentation; it is not the response to `/`. Uvicorn is started with `:app`, so it imports this exact object and uses it to decide which requests the program can handle.
+
+```python
+@app.get("/")
+```
+
+This is a decorator. Read it as: “register the function directly below as the handler for an HTTP GET request whose path is `/`.” `/` is the root path: `http://127.0.0.1:8000/`. The decorator runs when Python imports this file, so FastAPI records the route before any browser/client request arrives.
+
+```python
+def home() -> dict[str, str]:
+```
+
+This defines the route function named `home`. It has no parameters because this first endpoint accepts no input. `-> dict[str, str]` is a type hint saying the function returns a dictionary with string keys and string values. FastAPI uses type information in its generated documentation and validation system; here it also helps a reader predict the response shape.
+
+```python
+    return {"message": "Hello AI Engineering"}
+```
+
+This function returns a Python dictionary. FastAPI receives it, serializes it to JSON, sets a JSON response content type, and sends it to the client. The browser or `requests` client receives JSON equivalent to `{"message":"Hello AI Engineering"}`. FastAPI supplies the default successful HTTP status `200`.
+
+**Complete runtime flow:** first, Uvicorn imports the module and finds `app`; second, FastAPI registers the `/` GET route; third, a client sends `GET /`; fourth, FastAPI calls `home`; fifth, the dictionary is converted to JSON and returned. The function does not run merely because the file was imported—it runs once a matching HTTP request arrives.
+
+**Try this safely:** change only the string value, restart Uvicorn, refresh `/`, and verify the response changes. Then open `/docs`; FastAPI generated that page from the registered application and route information.
 
 ### 7. Run
 

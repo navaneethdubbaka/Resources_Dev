@@ -2,6 +2,10 @@
 
 This module teaches the first link in the Day 2 progression: **Python program -> HTTP request -> server -> HTTP response -> Python program**. `requests` is a client-side library: it calls an API. In the next module, FastAPI will let us build one.
 
+## If you are completely new
+
+Do not try to memorize every word before running the code. First identify four things in every example: **who starts the conversation** (your Python program), **where it goes** (the URL), **what is sent** (method, headers, or JSON), and **what comes back** (status plus response body). Read one line, predict what it does, run it, and compare your prediction with the output.
+
 ## Core vocabulary
 
 - **API (Application Programming Interface):** a documented interface through which one program asks another program for a service or data. APIs are not only for websites.
@@ -63,6 +67,62 @@ See `01_get_request.py`.
 ### 6. Important lines
 
 `timeout=10` limits waiting; `raise_for_status()` turns an error status into an exception; `response.text` is decoded text.
+
+### 6a. Line-by-line beginner walkthrough
+
+Read the actual file while following this explanation:
+
+```python
+"""Make the smallest useful HTTP GET request."""
+```
+
+This is a **docstring**: a short human-readable description. Python does not send it to the website. It helps a student or tool understand the purpose of the file.
+
+```python
+import requests
+```
+
+`import` makes code from an installed package available. After this line, `requests.get(...)` means “use the `get` function provided by the `requests` package.” Without this import, Python would not know what `requests` means.
+
+```python
+def main() -> None:
+```
+
+`def` defines a function named `main`. A function is a named group of instructions. It does not run at the moment Python reads this line; it runs only when something calls `main()`. `-> None` is a type hint telling readers that this function prints output but does not return a useful value.
+
+```python
+    response = requests.get("https://example.com", timeout=10)
+```
+
+Python first evaluates the URL string. Then it calls `requests.get`, which creates an HTTPS GET request and sends it to `example.com`. `timeout=10` says the client should stop waiting after roughly ten seconds. The server's reply is saved in the variable `response`. At this point, `response` is a response object containing the status code, response headers, final URL, and body; it is not simply a string.
+
+```python
+    response.raise_for_status()
+```
+
+This is a safety check. A status from 200 through 399 normally continues quietly. A 400-range client error or 500-range server error causes `requests` to raise an `HTTPError`, stopping the example instead of printing an error page as though it were a successful result.
+
+```python
+    print("Status code:", response.status_code)
+```
+
+`response.status_code` retrieves the server's numeric outcome. `print` accepts multiple values and puts a space between them, so a successful run displays `Status code: 200`.
+
+```python
+    print("First 200 characters of the response:")
+    print(response.text[:200])
+```
+
+The first line labels what follows. `response.text` converts the response body to decoded text. `[:200]` is Python slicing: it starts at the beginning and stops before character 200. `example.com` returns HTML, so this output begins with HTML tags. The slice keeps the terminal readable.
+
+```python
+if __name__ == "__main__":
+    main()
+```
+
+When Python runs this file directly, it sets `__name__` to `"__main__"`, making the condition true and calling `main()`. If another Python file imports this example, the condition is false, so the network request does not run unexpectedly.
+
+**Trace the complete flow:** Python enters `main` -> creates a GET request -> waits for a server reply -> saves the reply as `response` -> checks for an error status -> reads two response fields -> prints them.
 
 ### 7. Run
 
