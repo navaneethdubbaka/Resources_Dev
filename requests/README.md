@@ -354,11 +354,11 @@ Servers can return error statuses and networks can fail. A client needs a delibe
 
 ~~~mermaid
 flowchart TD
-    A[get_status(url)] --> B[GET + timeout]
-    B --> C{raise_for_status succeeds?}
-    C -->|Yes| D[Print success; return status]
-    C -->|No| E[Catch RequestException]
-    E --> F[Print failure; return None]
+    A["get_status(url)"] --> B["GET with timeout"]
+    B --> C{"raise_for_status() succeeds?"}
+    C -->|Yes| D["Print success; return status"]
+    C -->|No| E["Catch RequestException"]
+    E --> F["Print failure; return None"]
 ~~~
 
 ### Code
