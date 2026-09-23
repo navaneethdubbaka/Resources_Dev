@@ -1,585 +1,887 @@
-# `requests`: Calling APIs from Python
+# Python requests — Calling HTTP APIs
 
-This module teaches the first link in the Day 2 progression: **Python program -> HTTP request -> server -> HTTP response -> Python program**. `requests` is a client-side library: it calls an API. In the next module, FastAPI will let us build one.
+> A teachable progression from a basic HTTP GET request to an authenticated, multi-turn OpenAI-compatible LLM client.
 
-## If you are completely new
+Read the scripts in numerical order. Each one introduces a single capability used by a later example.
 
-Do not try to memorize every word before running the code. First identify four things in every example: **who starts the conversation** (your Python program), **where it goes** (the URL), **what is sent** (method, headers, or JSON), and **what comes back** (status plus response body). Read one line, predict what it does, run it, and compare your prediction with the output.
+## Learning objectives
 
-## Core vocabulary
+- Make GET and POST requests with requests.
+- Send JSON bodies and HTTP headers.
+- Parse JSON responses and select fields.
+- Check HTTP errors and handle timeouts.
+- Configure a chat-completions client through environment variables.
+- Keep multi-turn chat context by sending conversation history.
 
-- **API (Application Programming Interface):** a documented interface through which one program asks another program for a service or data. APIs are not only for websites.
-- **HTTP:** the request/response protocol commonly used by web APIs. A request has a method, URL, optional headers, and optional body; a response has a status code, headers, and body.
-- **URL and endpoint:** a URL is an address; an endpoint is a specific API address and operation, such as `/todos/1`.
-- **REST:** a common HTTP API style where URLs represent resources and HTTP methods express actions. It is a convention, not a Python library.
-- **JSON:** a text data format made of objects, lists, strings, numbers, booleans, and `null`. `response.text` is raw text; `response.json()` parses JSON into Python data.
-- **`requests`:** a Python package that creates HTTP requests and gives back response objects.
+## Big picture
 
-## HTTP building blocks
+~~~mermaid
+flowchart LR
+    P[Python application] --> R[requests]
+    R -->|GET / POST + timeout| API[HTTP API]
+    API -->|status + headers + body| R
+    R -->|text or JSON| P
+    ENV[LLM_BASE_URL<br/>LLM_API_KEY<br/>LLM_MODEL] -. configures .-> R
+    P -->|messages| LLM[OpenAI-compatible<br/>chat completions API]
+~~~
 
-| Part | Meaning | Example |
-| --- | --- | --- |
-| GET | Ask a server for data | `GET /todos/1` |
-| POST | Send data for the server to process/create | `POST /post` |
-| Query parameter | Small input placed after `?` in a URL | `/search?topic=http` |
-| Request body | Data sent with a request, often JSON | `{"name": "Ada"}` |
-| Header | Metadata about a request | `Accept: application/json` |
-| Status code | Result category | `200`, `404`, `401`, `429`, `500` |
+## Before the code
 
-Common status codes: `200 OK` means success; `201 Created` means a resource was created; `400 Bad Request` means input is invalid; `401 Unauthorized` usually means credentials are missing/invalid; `404 Not Found` means no matching endpoint/resource; `429 Too Many Requests` means rate limited; `500` means the server failed. Treat any response as fallible.
+| Term | Meaning in these scripts |
+| --- | --- |
+| API | A service that another program can use over a network. |
+| HTTP | The request/response protocol being used. |
+| Endpoint | One API URL, such as https://httpbin.org/post. |
+| Request | Client input: method, URL, plus optional headers and body. |
+| Response | Server output: status code, headers, and body. |
+| JSON | Structured data represented in Python as dictionaries and lists. |
+| Timeout | The maximum time a client will wait. |
 
-Headers commonly include `Accept` (response formats the client can read), `Content-Type` (the body format being sent), and `Authorization` (credentials). An API key is a secret used for authentication/authorization. Put it in an environment variable, never in source code or a committed `.env` file.
+> [!TIP]
+> A 404 or 500 is still a requests response. Calling response.raise_for_status() turns it into an exception that a program can deliberately handle.
 
 ## Setup
 
-From the repository root on Windows:
+The existing virtual environment contains the only direct dependency:
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
+~~~powershell
+.\.venv\Scripts\python.exe -m pip show requests
+~~~
 
-All commands below use that same interpreter. The public examples need internet access. They use public teaching services, so their exact output can change. The LLM examples need credentials and are deliberately not run by default.
+Run scripts from the repository root:
 
-## Example 1 — GET request (`01_get_request.py`)
+~~~powershell
+.\.venv\Scripts\python.exe requests\01_get_request.py
+~~~
 
-### 1. What are we trying to build?
+Examples 01–06 need internet access. Examples 07–08 also need valid LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL values. Never put a secret key in source code.
 
-A program that asks `https://example.com` for its page and prints the result status and text.
+---
 
-### 2. Why do we need it?
+## 01 — Smallest useful GET request
 
-This establishes the simplest API conversation: a client asks, then a server answers.
+### What are we learning?
 
-### 3. Architecture
+How to retrieve a page with requests.get(), validate the status, and read text.
 
-```text
-Python -> requests.get() -> HTTP GET -> server -> response object
-```
+### Why do we need it?
 
-### 4. Before code
+GET is the starting point for retrieving a resource from most APIs.
 
-`requests.get(URL)` sends a GET request. The returned `response` holds the status and body.
+### Flow
 
-### 5. Code
+~~~text
+Python → requests.get() → HTTP GET → example.com → 200 + HTML → response.text
+~~~
 
-See `01_get_request.py`.
+### Code
 
-### 6. Important lines
-
-`timeout=10` limits waiting; `raise_for_status()` turns an error status into an exception; `response.text` is decoded text.
-
-### 6a. Line-by-line beginner walkthrough
-
-Read the actual file while following this explanation:
-
-```python
+~~~python
 """Make the smallest useful HTTP GET request."""
-```
 
-This is a **docstring**: a short human-readable description. Python does not send it to the website. It helps a student or tool understand the purpose of the file.
-
-```python
 import requests
-```
 
-`import` makes code from an installed package available. After this line, `requests.get(...)` means “use the `get` function provided by the `requests` package.” Without this import, Python would not know what `requests` means.
 
-```python
 def main() -> None:
-```
-
-`def` defines a function named `main`. A function is a named group of instructions. It does not run at the moment Python reads this line; it runs only when something calls `main()`. `-> None` is a type hint telling readers that this function prints output but does not return a useful value.
-
-```python
     response = requests.get("https://example.com", timeout=10)
-```
-
-Python first evaluates the URL string. Then it calls `requests.get`, which creates an HTTPS GET request and sends it to `example.com`. `timeout=10` says the client should stop waiting after roughly ten seconds. The server's reply is saved in the variable `response`. At this point, `response` is a response object containing the status code, response headers, final URL, and body; it is not simply a string.
-
-```python
     response.raise_for_status()
-```
 
-This is a safety check. A status from 200 through 399 normally continues quietly. A 400-range client error or 500-range server error causes `requests` to raise an `HTTPError`, stopping the example instead of printing an error page as though it were a successful result.
-
-```python
     print("Status code:", response.status_code)
-```
-
-`response.status_code` retrieves the server's numeric outcome. `print` accepts multiple values and puts a space between them, so a successful run displays `Status code: 200`.
-
-```python
     print("First 200 characters of the response:")
     print(response.text[:200])
-```
 
-The first line labels what follows. `response.text` converts the response body to decoded text. `[:200]` is Python slicing: it starts at the beginning and stops before character 200. `example.com` returns HTML, so this output begins with HTML tags. The slice keeps the terminal readable.
 
-```python
 if __name__ == "__main__":
     main()
-```
+~~~
 
-When Python runs this file directly, it sets `__name__` to `"__main__"`, making the condition true and calling `main()`. If another Python file imports this example, the condition is false, so the network request does not run unexpectedly.
+### Important lines
 
-**Trace the complete flow:** Python enters `main` -> creates a GET request -> waits for a server reply -> saves the reply as `response` -> checks for an error status -> reads two response fields -> prints them.
+- requests.get(...) sends the request and returns a Response.
+- timeout=10 prevents indefinite waiting.
+- raise_for_status() validates the response status.
+- response.text is the body as text; [:200] shortens only the displayed output.
 
-### 7. Run
+### Execution flow
 
-```powershell
+The program requests Example Domain, checks success, prints status 200, then prints the first 200 characters of HTML.
+
+### Run
+
+~~~powershell
 .\.venv\Scripts\python.exe requests\01_get_request.py
-```
+~~~
 
-### 8. Expected output
+### Expected output
 
-`Status code: 200`, followed by the opening of an HTML page.
+Status code 200 followed by the beginning of the Example Domain HTML. The exact text can change.
 
-### 9. What changed?
+### What changed from the previous example?
 
-This is the baseline: no JSON body or custom headers yet.
+This is the starting point.
 
-### 10. Experiment
+### Try it yourself
 
-Change the URL to another public page and inspect its status code.
+Change [:200] to [:50]. What changes, and what does not?
 
-### 11. Common errors
+---
 
-`ConnectionError` means the network/DNS/proxy could not reach the host. `HTTPError` means the server returned an error status.
+## 02 — POST a JSON body
 
-### 12. Connection
+### What are we learning?
 
-Many APIs return JSON, which is easier for programs to use than HTML.
+How to send a Python dictionary as JSON with POST and decode a JSON reply.
 
-## Example 2 — POST request (`02_post_request.py`)
+### Why do we need it?
 
-### 1. What are we trying to build?
+Many APIs require client input: a record to create, a form submission, or a prompt.
 
-Send a JSON object to a service and read back what it received.
+### Flow
 
-### 2. Why do we need it?
+~~~mermaid
+sequenceDiagram
+    participant P as Python
+    participant A as httpbin.org/post
+    P->>A: POST with json=payload
+    A-->>P: 200 + JSON echo
+    P->>P: response.json()["json"]
+~~~
 
-GET asks for data; POST sends data to the server. LLM prompts are commonly sent with POST.
+### Code
 
-### 3. Architecture
+~~~python
+"""Send a JSON request body with HTTP POST."""
 
-```text
-Python -> POST + JSON body -> server -> JSON response -> Python dict
-```
+import requests
 
-### 4. Before code
 
-Passing `json=payload` makes `requests` serialize a Python dictionary as JSON and set the appropriate content type.
+def main() -> None:
+    payload = {"name": "Ada", "topic": "HTTP POST"}
+    response = requests.post("https://httpbin.org/post", json=payload, timeout=10)
+    response.raise_for_status()
 
-### 5. Code
+    data = response.json()
+    print("Server received this JSON:", data["json"])
 
-See `02_post_request.py`.
 
-### 6. Important lines
+if __name__ == "__main__":
+    main()
+~~~
 
-`payload` is the request body. `response.json()` parses the JSON response into a Python dictionary.
+### Important lines
 
-### 7. Run
+- payload is a normal Python dictionary.
+- json=payload serializes and sends it as a JSON body.
+- response.json() parses the JSON response.
+- data["json"] selects the server echo.
 
-```powershell
+### Execution flow
+
+The script posts Ada’s data to httpbin, checks the response, and prints the JSON the server received.
+
+### Run
+
+~~~powershell
 .\.venv\Scripts\python.exe requests\02_post_request.py
-```
+~~~
 
-### 8. Expected output
+### Expected output
 
-The echoed JSON contains `name: Ada` and `topic: HTTP POST`.
+~~~text
+Server received this JSON: {'name': 'Ada', 'topic': 'HTTP POST'}
+~~~
 
-### 9. What changed?
+### What changed from the previous example?
 
-The client now supplies a request body rather than only a URL.
+Example 01 retrieved text with GET. This example sends structured JSON with POST and parses structured JSON back.
 
-### 10. Experiment
+### Try it yourself
 
-Add a `course` field to `payload`.
+Add "level": "beginner" to payload and verify it is echoed.
 
-### 11. Common errors
+---
 
-Do not use `data=` by accident when the API expects JSON; use the API documentation to choose the right format.
+## 03 — Send request headers
 
-### 12. Connection
+### What are we learning?
 
-Headers tell the server additional information about this JSON request.
+How to attach request metadata through HTTP headers.
 
-## Example 3 — Headers (`03_headers.py`)
+### Why do we need it?
 
-### 1. What are we trying to build?
+Headers describe client preferences, identity, and eventually authorization; they are separate from the body.
 
-Make a request that includes metadata.
+### Flow
 
-### 2. Why do we need it?
+~~~text
+headers dictionary → requests.get(..., headers=headers) → httpbin → echoed headers
+~~~
 
-Servers need context such as accepted formats, client identity, and sometimes authorization.
+### Code
 
-### 3. Architecture
+~~~python
+"""Send descriptive metadata with request headers."""
 
-```text
-Python -> URL + headers -> server -> response
-```
+import requests
 
-### 4. Before code
 
-Headers are not the response body. They describe how the client and server should communicate.
+def main() -> None:
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "ai-engineering-day2/1.0",
+    }
+    response = requests.get("https://httpbin.org/headers", headers=headers, timeout=10)
+    response.raise_for_status()
 
-### 5. Code
+    print("Headers seen by the server:")
+    print(response.json()["headers"])
 
-See `03_headers.py`.
 
-### 6. Important lines
+if __name__ == "__main__":
+    main()
+~~~
 
-`Accept` asks for JSON. `User-Agent` identifies this teaching client. A real `Authorization` value must come from an environment variable.
+### Important lines
 
-### 7. Run
+- Accept asks for JSON.
+- User-Agent identifies this client.
+- headers=headers attaches the dictionary to the GET.
+- httpbin /headers returns what it saw; transport layers may add more headers.
 
-```powershell
+### Execution flow
+
+The script sends both headers, validates the response, parses its JSON, and prints the server-visible header dictionary.
+
+### Run
+
+~~~powershell
 .\.venv\Scripts\python.exe requests\03_headers.py
-```
+~~~
 
-### 8. Expected output
+### Expected output
 
-A dictionary of headers observed by the server, including the teaching `User-Agent`.
+A dictionary containing Accept: application/json and User-Agent: ai-engineering-day2/1.0, plus extra transport headers.
 
-### 9. What changed?
+### What changed from the previous example?
 
-The request now includes metadata in addition to the URL.
+Example 02 used a request body. This GET adds metadata through headers—the mechanism later used for LLM authorization.
 
-### 10. Experiment
+### Try it yourself
 
-Change the `User-Agent` value and find it in the response.
+Change User-Agent and locate the new value in the response.
 
-### 11. Common errors
+---
 
-Never paste a real `Authorization` key into this file, a screenshot, or a repository.
+## 04 — Read JSON fields
 
-### 12. Connection
+### What are we learning?
 
-Next we parse a useful JSON response rather than only print raw text.
+How to parse an API JSON response and select named values from the resulting dictionary.
 
-## Example 4 — JSON response (`04_json_request.py`)
+### Why do we need it?
 
-### 1. What are we trying to build?
+Printing a whole response is useful for exploration; applications need the particular fields they use.
 
-Fetch a JSON resource and read named fields from it.
+### Flow
 
-### 2. Why do we need it?
+~~~text
+GET /todos/1 → JSON response → response.json() → Python dictionary → selected fields
+~~~
 
-JSON lets programs work with structured API data without manually splitting text.
+### Code
 
-### 3. Architecture
+~~~python
+"""Read JSON returned by an API and access its fields."""
 
-```text
-GET -> JSON response text -> response.json() -> Python dictionary
-```
+import requests
 
-### 4. Before code
 
-Use `.json()` only when the server actually returns valid JSON. It is different from `.text`, which returns the raw body as text.
+def main() -> None:
+    response = requests.get("https://jsonplaceholder.typicode.com/todos/1", timeout=10)
+    response.raise_for_status()
 
-### 5. Code
+    data = response.json()
+    print("Whole JSON object:", data)
+    print("Title:", data["title"])
+    print("Completed:", data["completed"])
 
-See `04_json_request.py`.
 
-### 6. Important lines
+if __name__ == "__main__":
+    main()
+~~~
 
-`data["title"]` accesses a dictionary value after JSON parsing.
+### Important lines
 
-### 7. Run
+- The endpoint represents a sample todo item.
+- .json() converts the body into a Python dictionary.
+- data["title"] and data["completed"] select individual values.
 
-```powershell
+### Execution flow
+
+The program retrieves todo 1, shows the whole object, then prints its title and completed flag.
+
+### Run
+
+~~~powershell
 .\.venv\Scripts\python.exe requests\04_json_request.py
-```
+~~~
 
-### 8. Expected output
+### Expected output
 
-A todo object, its title, and a Boolean completion value.
+The current sample includes title delectus aut autem and Completed: False.
 
-### 9. What changed?
+### What changed from the previous example?
 
-We convert a response body into Python data.
+Example 03 inspected echoed request metadata. This example treats returned JSON as application data.
 
-### 10. Experiment
+### Try it yourself
 
-Request `/todos/2` and compare the result.
+Change /todos/1 to /todos/2 and compare its fields.
 
-### 11. Common errors
+---
 
-`JSONDecodeError` usually means the endpoint returned HTML/plain text (possibly an error page), not JSON.
+## 05 — Handle HTTP and network failures
 
-### 12. Connection
+### What are we learning?
 
-Good programs also handle failures instead of assuming parsing always succeeds.
+How to catch requests.RequestException so a failed request becomes a controlled program outcome.
 
-## Example 5 — Error handling (`05_error_handling.py`)
+### Why do we need it?
 
-### 1. What are we trying to build?
+Servers can return error statuses and networks can fail. A client needs a deliberate failure path.
 
-A safe GET helper that reports a request problem instead of crashing unclearly.
+### Flow
 
-### 2. Why do we need it?
+~~~mermaid
+flowchart TD
+    A[get_status(url)] --> B[GET + timeout]
+    B --> C{raise_for_status succeeds?}
+    C -->|Yes| D[Print success; return status]
+    C -->|No| E[Catch RequestException]
+    E --> F[Print failure; return None]
+~~~
 
-Networks, URLs, servers, and credentials can all fail.
+### Code
 
-### 3. Architecture
+~~~python
+"""Handle network, timeout, and HTTP-status failures safely."""
 
-```text
-request -> success -> status
-        -> failure -> RequestException -> clear message
-```
+import requests
 
-### 4. Before code
 
-`raise_for_status()` treats 4xx/5xx responses as errors. `RequestException` is a base class for common `requests` failures.
+def get_status(url: str) -> int | None:
+    """Return a successful status code, or explain why the request failed."""
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException as error:
+        print(f"Request failed: {error}")
+        return None
 
-### 5. Code
+    print(f"Request succeeded with status {response.status_code}")
+    return response.status_code
 
-See `05_error_handling.py`.
 
-### 6. Important lines
+if __name__ == "__main__":
+    # This endpoint intentionally returns 404 so the error path is visible.
+    get_status("https://httpbin.org/status/404")
+~~~
 
-The `try` contains the request; `except requests.RequestException` handles connection, timeout, and HTTP errors.
+### Important lines
 
-### 7. Run
+- int | None declares either a successful status or no value.
+- The try includes both request and status validation.
+- RequestException covers request-related errors, including the one raised by raise_for_status().
+- This endpoint intentionally returns 404.
 
-```powershell
+### Execution flow
+
+The request gets a 404. raise_for_status() raises, the except block prints the failure, and the function returns None. The script exits normally.
+
+### Run
+
+~~~powershell
 .\.venv\Scripts\python.exe requests\05_error_handling.py
-```
+~~~
 
-### 8. Expected output
+### Expected output
 
-A readable failure message for the deliberately requested `404` endpoint.
+Output starts with Request failed: and reports a 404 Client Error. This is the intended path and exits with code 0.
 
-### 9. What changed?
+### What changed from the previous example?
 
-The program now has a controlled failure path.
+The earlier scripts assumed success. This one turns an unsuccessful response into a safe, explicit outcome.
 
-### 10. Experiment
+### Try it yourself
 
-Pass a successful URL to `get_status`.
+Import get_status and call it with https://example.com. Compare the successful integer with the 404 result.
 
-### 11. Common errors
+---
 
-Do not catch bare `Exception`; it can hide programming mistakes unrelated to HTTP.
+## 06 — Set a short timeout
 
-### 12. Connection
+### What are we learning?
 
-Timeouts are one important failure type worth making explicit.
+How to handle requests.Timeout separately from other request failures.
 
-## Example 6 — Timeout (`06_timeout.py`)
+### Why do we need it?
 
-### 1. What are we trying to build?
+Without a timeout, a slow service can leave an application waiting too long.
 
-A request that stops waiting after a chosen limit.
+### Flow
 
-### 2. Why do we need it?
+~~~text
+httpbin delay: 3 seconds → client timeout: 1.0 second → Timeout → print message → False
+~~~
 
-Without a timeout, a stalled service can make a user wait indefinitely.
+### Code
 
-### 3. Architecture
+~~~python
+"""Set a time limit so a slow server cannot block the program forever."""
 
-```text
-slow server -> timeout limit -> Timeout exception -> program continues
-```
+import requests
 
-### 4. Before code
 
-`timeout` is a client-side waiting limit, not an instruction that makes the server finish faster.
+def get_with_short_timeout(url: str, timeout_seconds: float = 1.0) -> bool:
+    try:
+        response = requests.get(url, timeout=timeout_seconds)
+        response.raise_for_status()
+    except requests.Timeout:
+        print(f"Timed out after {timeout_seconds} second(s).")
+        return False
+    except requests.RequestException as error:
+        print(f"Request failed: {error}")
+        return False
 
-### 5. Code
+    print("Request completed before the timeout.")
+    return True
 
-See `06_timeout.py`.
 
-### 6. Important lines
+if __name__ == "__main__":
+    # httpbin waits three seconds; the one-second timeout demonstrates the failure.
+    get_with_short_timeout("https://httpbin.org/delay/3")
+~~~
 
-The specific `requests.Timeout` branch gives a clearer explanation than a generic failure.
+### Important lines
 
-### 7. Run
+- timeout_seconds: float = 1.0 provides a configurable one-second default.
+- The specific Timeout handler appears before broad RequestException.
+- /delay/3 intentionally exceeds the allowed second.
 
-```powershell
+### Execution flow
+
+The endpoint delays for three seconds; requests raises Timeout after one. The function prints a precise message and returns False.
+
+### Run
+
+~~~powershell
 .\.venv\Scripts\python.exe requests\06_timeout.py
-```
+~~~
 
-### 8. Expected output
+### Expected output
 
-Usually `Timed out after 1.0 second(s).` The public service/proxy may instead fail or return promptly; both outcomes are handled.
+~~~text
+Timed out after 1.0 second(s).
+~~~
 
-### 9. What changed?
+### What changed from the previous example?
 
-Error handling now distinguishes slow responses from other request failures.
+Example 05 handled failures broadly. This example identifies the common slow-server case specifically.
 
-### 10. Experiment
+### Try it yourself
 
-Set `timeout_seconds` to `5` and compare the behavior.
+Call get_with_short_timeout("https://httpbin.org/delay/3", timeout_seconds=5). Predict the result first.
 
-### 11. Common errors
+---
 
-Do not use an unrealistically tiny timeout in production; choose it for the service and user experience.
+## 07 — Call an OpenAI-compatible LLM API
 
-### 12. Connection
+### What are we learning?
 
-The same POST, JSON, headers, and timeout ideas apply to an LLM API.
+How JSON, headers, timeout, configuration, and response parsing combine in an authenticated chat-completions request.
 
-## Example 7 — LLM API (`07_llm_api.py`)
+### Why do we need it?
 
-### 1. What are we trying to build?
+An LLM API is an HTTP API: it needs an endpoint, authentication, a JSON payload, and defensive handling.
 
-Send a chat message to an OpenAI-compatible LLM endpoint and print generated text.
+### Flow
 
-### 2. Why do we need it?
+~~~mermaid
+sequenceDiagram
+    participant E as Environment
+    participant P as Python
+    participant L as LLM chat-completions API
+    E-->>P: base URL, key, model
+    P->>L: POST + Bearer token + messages JSON
+    L-->>P: choices[0].message.content
+    P-->>P: print answer
+~~~
 
-An LLM API is still an HTTP API: it receives a POST body and returns JSON.
+### Code
 
-### 3. Architecture
+~~~python
+"""Call an OpenAI-compatible LLM API with configuration from environment variables."""
 
-```text
-Python -> requests POST -> LLM API -> JSON response -> generated text
-```
+import os
 
-### 4. Before code
+import requests
 
-Copy `.env.example` values into your shell environment; do not commit a real `.env`. `LLM_BASE_URL` should omit the trailing slash and `LLM_MODEL` is provider-specific.
 
-### 5. Code
+def load_llm_config() -> tuple[str, str, str]:
+    """Read required configuration without ever putting a key in source code."""
+    base_url = os.getenv("LLM_BASE_URL", "").rstrip("/")
+    api_key = os.getenv("LLM_API_KEY", "")
+    model = os.getenv("LLM_MODEL", "")
+    if not all((base_url, api_key, model)):
+        raise RuntimeError(
+            "Set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL before running this example."
+        )
+    return base_url, api_key, model
 
-See `07_llm_api.py`.
 
-### 6. Important lines
+def ask_llm(messages: list[dict[str, str]]) -> str:
+    """Send chat messages and return text from a chat-completions response."""
+    base_url, api_key, model = load_llm_config()
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"model": model, "messages": messages}
 
-`os.getenv` reads configuration; `Authorization: Bearer ...` authenticates; `messages` is the chat input. The extraction matches the OpenAI-compatible chat-completions response shape.
+    try:
+        response = requests.post(
+            f"{base_url}/chat/completions", headers=headers, json=payload, timeout=30
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"]
+    except (requests.RequestException, KeyError, IndexError, TypeError) as error:
+        raise RuntimeError(f"LLM request failed: {error}") from error
 
-### 7. Run
 
-```powershell
-$env:LLM_BASE_URL = "https://api.openai.com/v1"
-$env:LLM_API_KEY = "your-key"
-$env:LLM_MODEL = "your-model"
+if __name__ == "__main__":
+    answer = ask_llm([{"role": "user", "content": "Explain HTTP in one sentence."}])
+    print(answer)
+~~~
+
+### Important lines
+
+- os.getenv reads configuration outside source code; rstrip("/") normalizes the URL.
+- all(...) fails before a request when any required setting is missing.
+- Authorization: Bearer carries the secret key; never print or commit it.
+- json=payload sends the chosen model and messages.
+- The response path extracts the first assistant answer.
+- The exception tuple covers network/HTTP issues and an unexpected JSON shape.
+
+### Execution flow
+
+The script validates configuration, POSTs to {LLM_BASE_URL}/chat/completions, checks success, extracts the assistant content, and prints it. Missing configuration stops execution before a request.
+
+### Run
+
+Set valid provider-specific values in the current PowerShell session:
+
+~~~powershell
+$env:LLM_BASE_URL = "https://your-provider.example/v1"
+$env:LLM_API_KEY = "your-secret-key"
+$env:LLM_MODEL = "your-model-name"
 .\.venv\Scripts\python.exe requests\07_llm_api.py
-```
+~~~
 
-### 8. Expected output
+### Expected output
 
-A non-deterministic one-sentence explanation of HTTP.
+With valid values, it prints a one-sentence answer. If any configuration is missing, it intentionally raises:
 
-### 9. What changed?
+~~~text
+RuntimeError: Set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL before running this example.
+~~~
 
-We use POST, JSON, headers, errors, and timeouts together against a credentialed API.
+### What changed from the previous example?
 
-### 10. Experiment
+The safe HTTP patterns are now used in a real authenticated API: headers, JSON body, 30-second timeout, and nested JSON parsing.
 
-Change the prompt to request an explanation for a first-year student.
+### Try it yourself
 
-### 11. Common errors
+With valid configuration, change only the user prompt and observe the answer.
 
-Missing variables cause a clear `RuntimeError`; `401` generally means an invalid/missing key; `429` means rate limited; a provider may use a different endpoint or response schema.
+---
 
-### 12. Connection
+## 08 — Preserve conversation history
 
-One API call is stateless unless the application deliberately sends earlier messages too.
+### What are we learning?
 
-## Example 8 — Conversation history (`08_conversation_history.py`)
+How to create multi-turn context by appending user and assistant messages to a list and sending all history on every request.
 
-### 1. What are we trying to build?
+### Why do we need it?
 
-Keep a small list of chat messages and resend it with each new request.
+HTTP requests are independent. The client must resupply prior turns if the model should use them as context.
 
-### 2. Why do we need it?
+### Flow
 
-An LLM does not automatically remember previous HTTP requests. The application must choose, store, and supply context.
+~~~mermaid
+flowchart LR
+    S[system instruction] --> H[conversation history]
+    U1[first user turn] --> H
+    H -->|POST all messages| L[LLM API]
+    L --> A1[assistant reply]
+    A1 --> H
+    U2[second user turn] --> H
+    H -->|POST expanded history| L
+~~~
 
-### 3. Architecture
+### Code
 
-```text
-user message -> application history -> LLM API -> reply -> history updated
-```
+~~~python
+"""Show that an application must send chat history if it wants context."""
 
-### 4. Before code
+import os
 
-Each history item has a `role` and `content`. The second request includes the first user message and first assistant reply.
+import requests
 
-### 5. Code
 
-See `08_conversation_history.py`.
+def load_llm_config() -> tuple[str, str, str]:
+    base_url = os.getenv("LLM_BASE_URL", "").rstrip("/")
+    api_key = os.getenv("LLM_API_KEY", "")
+    model = os.getenv("LLM_MODEL", "")
+    if not all((base_url, api_key, model)):
+        raise RuntimeError(
+            "Set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL before running this example."
+        )
+    return base_url, api_key, model
 
-### 6. Important lines
 
-`history.append(...)` records messages. Passing `history` as `messages` makes context explicit. In a real application, limit or summarize history to manage cost and privacy.
+def send_message(history: list[dict[str, str]], user_message: str) -> str:
+    """Add a user message, call the API with all history, then save its reply."""
+    base_url, api_key, model = load_llm_config()
+    history.append({"role": "user", "content": user_message})
+    response = requests.post(
+        f"{base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": model, "messages": history},
+        timeout=30,
+    )
+    response.raise_for_status()
+    answer = response.json()["choices"][0]["message"]["content"]
+    history.append({"role": "assistant", "content": answer})
+    return answer
 
-### 7. Run
 
-Use the same three environment variables as Example 7, then:
+if __name__ == "__main__":
+    conversation: list[dict[str, str]] = [
+        {"role": "system", "content": "Answer clearly and briefly."}
+    ]
+    print("Assistant:", send_message(conversation, "My name is Priya."))
+    print("Assistant:", send_message(conversation, "What is my name?"))
+    print("Messages sent on the second request:", len(conversation))
+~~~
 
-```powershell
+### Important lines
+
+- conversation begins with a system instruction.
+- history.append adds the user turn before the request.
+- messages: history sends every accumulated message, not only the newest.
+- The returned assistant answer is appended for future context.
+- After two turns, len(conversation) is normally 5: system, user, assistant, user, assistant.
+
+### Execution flow
+
+The first request sends the instruction and introduction, then stores the reply. The second adds the name question and sends the enlarged history, allowing the model to use the earlier introduction.
+
+### Run
+
+After setting the same three variables from example 07:
+
+~~~powershell
 .\.venv\Scripts\python.exe requests\08_conversation_history.py
-```
+~~~
 
-### 8. Expected output
+### Expected output
 
-The model should identify `Priya` on the second turn, though wording varies.
+Two assistant replies are printed. With a capable configured model, the second identifies Priya. The final line normally is:
 
-### 9. What changed?
+~~~text
+Messages sent on the second request: 5
+~~~
 
-We changed a one-turn call into an application-managed multi-turn conversation.
+The exact model wording can vary. Missing configuration produces the intentional RuntimeError shown in example 07.
 
-### 10. Experiment
+### What changed from the previous example?
 
-Add a third question and inspect `conversation` before and after it.
+Example 07 sends a message list once. This script maintains that list across calls and records both sides of every turn.
 
-### 11. Common errors
+### Try it yourself
 
-Do not log sensitive conversation history carelessly. If the provider response differs from the documented shape, inspect its JSON before indexing it.
+Add a third call asking what instruction the assistant was given. Predict the final history length.
 
-### 12. Connection
+---
 
-FastAPI can expose these client capabilities through an API endpoint for other applications.
+## Learning progression
 
-## Instructor Teaching Script
+~~~mermaid
+flowchart LR
+    A[01<br/>GET text] --> B[02<br/>POST JSON]
+    B --> C[03<br/>Headers]
+    C --> D[04<br/>Read JSON]
+    D --> E[05<br/>Failures]
+    E --> F[06<br/>Timeouts]
+    F --> G[07<br/>LLM API]
+    G --> H[08<br/>Conversation history]
+~~~
 
-1. Ask: “How can one program ask another program for data?” Draw `Python -> HTTP request -> server -> response`.
-2. Establish GET as asking and POST as sending. Run Examples 1–2 and ask students to identify the URL, method, body, and response.
-3. Draw headers beside—not inside—the body. Ask why credentials belong in a header and why a key must not be committed.
-4. Compare raw `text` with parsed `json()`. Ask students why structured data helps software.
-5. Deliberately run the 404 and timeout examples. Correct the misconception that successful networking is guaranteed.
-6. Draw the LLM flow and say: “The model is special, but the integration is HTTP.” Emphasize that conversation memory belongs to the application.
-7. Ask before moving on: “If `requests` calls an API, what could create an API for other programs?” Expected answer: FastAPI.
+| New example | Why it is introduced |
+| --- | --- |
+| 01 | Establishes the request/response cycle. |
+| 02 | Adds JSON flowing from client to server. |
+| 03 | Adds request metadata. |
+| 04 | Uses response JSON as program data. |
+| 05 | Handles a failed request safely. |
+| 06 | Distinguishes a slow request from other failures. |
+| 07 | Combines prior pieces in a configured LLM call. |
+| 08 | Adds client-managed state across LLM turns. |
 
-## Common questions
+## Code → concept
 
-**Is `requests` an API?** No. It is a Python client library used to call APIs.
-
-**Does REST require JSON?** No, but JSON is common in REST-style APIs.
-
-**Should every GET have a body?** No; use query parameters for small GET inputs, and follow the API’s documentation.
-
-**Is an API key the same as encryption?** No. It identifies/authorizes a caller; HTTPS protects data in transit.
-
-**Does conversation history mean an LLM has permanent memory?** No. This example sends an in-memory list with each request.
-
-## Student Exercises
-
-1. Change Example 1 to print a different public page’s status code.
-2. Add a field to the POST JSON body and observe the echo.
-3. Add a harmless custom header to Example 3.
-4. Turn `get_status` into a function that returns `True`/`False` for a URL list.
-5. Add a system message that makes the conversation respond in bullet points.
-
-## Troubleshooting
-
-| Symptom | Likely cause | Fix |
+| File | Concept | What it teaches |
 | --- | --- | --- |
-| `ModuleNotFoundError: requests` | Wrong interpreter or packages not installed | Run `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`. |
-| `ConnectionError` | Offline network, DNS, firewall, or proxy | Check connectivity/proxy settings; retry later. |
-| `ReadTimeout` | Server is slower than the chosen limit | Increase the timeout only when appropriate. |
-| `401` | Missing/invalid API key | Set `LLM_API_KEY` securely and verify provider instructions. |
-| `404` | Wrong endpoint URL | Check the API documentation and base URL. |
-| `429` | Rate limit exceeded | Wait, reduce calls, or follow the provider’s rate-limit guidance. |
-| Missing LLM variable error | Environment variable was not set in this shell | Set all three variables shown in Example 7 and rerun. |
+| 01_get_request.py | GET and text | Request, validate, inspect a text response. |
+| 02_post_request.py | POST JSON | Send a dictionary and parse JSON. |
+| 03_headers.py | Headers | Send metadata visible to the server. |
+| 04_json_request.py | JSON fields | Select useful values from an API response. |
+| 05_error_handling.py | Failures | Catch RequestException and return None. |
+| 06_timeout.py | Timeout | Catch a slow-request failure. |
+| 07_llm_api.py | LLM client | Configure and call chat completions securely. |
+| 08_conversation_history.py | Conversation state | Send full history on each request. |
 
-## Module boundary
+## Common errors
 
-This module is intentionally client-side only. It does not create FastAPI, LangChain, LangGraph, shared, test, or docs modules. Those are later phases in the prescribed learning sequence.
+<details>
+<summary><strong>ModuleNotFoundError: No module named requests</strong></summary>
 
-## Student code-reading guide
+~~~text
+Problem: Python cannot import requests
+↓
+Why it happens: a different interpreter is running, or requests is absent there
+↓
+How to fix: use .\.venv\Scripts\python.exe and run
+            .\.venv\Scripts\python.exe -m pip show requests
+~~~
+</details>
 
-Read each file top-to-bottom, then trace the request and response: **01** imports `requests`, performs GET, checks the status, and prints raw `text`; **02** creates a Python `payload`, sends it with `json=`, and parses the echoed JSON; **03** constructs a headers dictionary and proves headers travel separately from the body; **04** uses `response.json()` and dictionary keys; **05** wraps request/HTTP/network failures in `RequestException`; **06** handles the narrower `Timeout` failure before general request errors; **07** reads environment configuration, builds authorization headers and a chat-completions JSON body, then extracts the provider response; **08** appends user and assistant messages to application-owned history before each call. Every `if __name__ == "__main__"` block is a runnable demonstration, while the functions above it make the important behavior reusable and testable.
+<details>
+<summary><strong>Connection, DNS, proxy, or firewall failure</strong></summary>
+
+~~~text
+Problem: requests cannot reach a public endpoint
+↓
+Why it happens: internet access, proxy/firewall rules, DNS, or service availability blocks the connection
+↓
+How to fix: check network/proxy configuration and retry; retain timeouts and error handling in real clients
+~~~
+</details>
+
+<details>
+<summary><strong>404 in example 05 / timeout in example 06</strong></summary>
+
+~~~text
+Problem: example 05 prints a 404, or example 06 prints a timeout
+↓
+Why it happens: both endpoints deliberately trigger the demonstrated error path
+↓
+How to fix: no fix is needed; use these outputs to trace the relevant except branch
+~~~
+</details>
+
+<details>
+<summary><strong>Missing LLM configuration in examples 07–08</strong></summary>
+
+~~~text
+Problem: RuntimeError requests LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL
+↓
+Why it happens: the script refuses to make an LLM request without all required configuration
+↓
+How to fix: set valid provider-specific values in the current shell; never commit a key
+~~~
+</details>
+
+<details>
+<summary><strong>LLM 401, 404, or unexpected response shape</strong></summary>
+
+~~~text
+Problem: the LLM request fails
+↓
+Why it happens: invalid key, incorrect endpoint/model, or a provider that is not OpenAI-compatible at /chat/completions
+↓
+How to fix: verify the provider endpoint, authentication, model name, and expected response format
+~~~
+</details>
+
+## Instructor teaching flow
+
+~~~text
+START
+ ↓
+Ask: “How can one program ask another program for data?”
+ ↓
+Explain API, endpoint, request, response, and JSON
+ ↓
+Show the architecture diagram
+ ↓
+Open 01; identify URL, timeout, status check, and text
+ ↓
+Run and change the output slice
+ ↓
+Open and run 02–04; compare body, headers, and returned fields
+ ↓
+Open and run 05–06; treat failure as a normal program state
+ ↓
+Open 07; map each HTTP piece to the LLM request
+ ↓
+Explain environment variables and secret safety
+ ↓
+Open 08; trace the growing history list
+ ↓
+Ask what happens if prior messages are omitted
+ ↓
+Move to FastAPI
+~~~
+
+Useful teaching questions:
+
+- What does raise_for_status() protect us from?
+- Why use json=payload rather than manually composing JSON text?
+- Which information belongs in a header rather than a request body?
+- Why does example 05 exit successfully after an HTTP failure?
+- Why is Timeout caught before RequestException in example 06?
+- Which three LLM settings must stay out of source code?
+- Why can the second LLM turn refer to Priya?
+
+## Student exercises
+
+~~~text
+Easy → Small modification → Concept combination
+~~~
+
+1. **Easy:** Change example 01 to print 50 characters.
+2. **Small modification:** Add a field to example 02’s JSON and verify the echo.
+3. **Small modification:** Set another User-Agent in example 03 and locate it in the response.
+4. **Small modification:** Request a different todo ID in example 04 and print its fields.
+5. **Concept combination:** Call get_status() with both a successful URL and its 404 URL; handle its int | None result.
+6. **Concept combination:** Call example 06’s function with one and five seconds; predict both outcomes.
+7. **LLM extension:** With valid configuration, add a third turn to example 08 and predict the final history length.
+
+## Key takeaways
+
+- APIs communicate through HTTP requests and responses.
+- GET retrieves; POST can send JSON.
+- Headers carry metadata, including authorization.
+- Parse JSON, then access the fields a program needs.
+- Use raise_for_status(), exception handling, and timeouts.
+- Keep LLM keys and connection settings in environment variables.
+- HTTP is stateless; client-sent history creates chat context.
+
+## Connection to the next module
+
+~~~mermaid
+flowchart LR
+    A[requests] --> B[“I can CALL an API.”]
+    B --> C[FastAPI]
+    C --> D[“Now I will BUILD an API.”]
+~~~
+
+This module makes Python the **client**. The next folder, fastapi/, makes Python the **server** that defines endpoints and returns responses.
