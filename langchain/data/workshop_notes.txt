@@ -1,0 +1,4 @@
+Python requests calls HTTP APIs from client programs.
+FastAPI builds HTTP APIs that other programs can call.
+LangChain composes prompts, models, parsers, retrieval, and tools.
+LangGraph controls stateful workflows with branches and loops.
